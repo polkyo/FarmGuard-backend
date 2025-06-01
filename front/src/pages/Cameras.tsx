@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Search } from 'lucide-react';
 import CameraCard from '../components/cameras/CameraCard';
-import AddCameraModal from '../components/cameras/AddCameraModal';
+import AddRealCameraModal from '../components/cameras/AddRealCameraModal';
 import Button from '../components/common/Button';
 import { useCamera } from '../contexts/CameraContext';
 
@@ -38,7 +38,7 @@ const Cameras: React.FC = () => {
           </Button>
         </div>
       </div>
-      
+
       {/* Filters */}
       <div className="flex flex-col md:flex-row gap-4 mb-8">
         <div className="relative flex-grow">
@@ -137,7 +137,7 @@ const Cameras: React.FC = () => {
       )}
       
       {/* Add Camera Modal */}
-      <AddCameraModal
+      <AddRealCameraModal
         isOpen={showAddCamera}
         onClose={() => setShowAddCamera(false)}
       />

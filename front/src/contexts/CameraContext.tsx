@@ -2,28 +2,6 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { Camera, CameraContextType } from '../types';
 import { useAuth } from './AuthContext';
 
-// Demo cameras data
-const DEMO_CAMERAS: Camera[] = [
-  {
-    id: '1',
-    name: 'North Field Camera',
-    location: 'North Boundary',
-    status: 'online',
-  },
-  {
-    id: '2',
-    name: 'Barn Area',
-    location: 'Main Barn',
-    status: 'online',
-  },
-  {
-    id: '3',
-    name: 'East Field',
-    location: 'Eastern Perimeter',
-    status: 'offline',
-  }
-];
-
 const CameraContext = createContext<CameraContextType | undefined>(undefined);
 
 export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -44,13 +22,12 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 800));
     
-    // Load stored cameras or use demo data
+    // Load stored cameras
     const storedCameras = localStorage.getItem('farm-protect-cameras');
     if (storedCameras) {
       setCameras(JSON.parse(storedCameras));
     } else {
-      setCameras(DEMO_CAMERAS);
-      localStorage.setItem('farm-protect-cameras', JSON.stringify(DEMO_CAMERAS));
+      setCameras([]);
     }
     
     setLoading(false);
