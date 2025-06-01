@@ -4,10 +4,6 @@
 <h1>YOLOv12</h1>
 <h3>YOLOv12: Attention-Centric Real-Time Object Detectors</h3>
 
-[Yunjie Tian](https://sunsmarterjie.github.io/)<sup>1</sup>, [Qixiang Ye](https://people.ucas.ac.cn/~qxye?language=en)<sup>2</sup>, [David Doermann](https://cse.buffalo.edu/~doermann/)<sup>1</sup>
-
-<sup>1</sup>  University at Buffalo, SUNY, <sup>2</sup> University of Chinese Academy of Sciences.
-
 
 <p align="center">
   <img src="assets/tradeoff_turbo.svg" width=90%> <br>
