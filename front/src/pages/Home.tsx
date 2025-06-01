@@ -1,10 +1,58 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, Video, BarChart3, BellRing, ArrowRight } from 'lucide-react';
 import Button from '../components/common/Button';
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [processedVideoUrl, setProcessedVideoUrl] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      setSelectedFile(event.target.files[0]);
+      setProcessedVideoUrl(null);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      alert('Please select a video file first');
+      return;
+    }
+
+    setIsProcessing(true);
+    const formData = new FormData();
+    formData.append('video', selectedFile);
+
+    try {
+      const response = await fetch('http://localhost:5000/process-video', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Video processing failed');
+      }
+
+      const blob = await response.blob();
+      if (blob.size === 0) {
+        throw new Error('Received empty video file');
+      }
+
+      const videoUrl = URL.createObjectURL(blob);
+      setProcessedVideoUrl(videoUrl);
+      alert('Video processed successfully');
+    } catch (error) {
+      console.error('Error processing video:', error);
+      alert(error instanceof Error ? error.message : 'Failed to process video');
+      setProcessedVideoUrl(null);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   return (
     <div className="bg-white">
@@ -45,6 +93,53 @@ const Home: React.FC = () => {
                 </Button>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Video Processing Section */}
+      <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+        <div className="bg-white shadow rounded-lg p-6">
+          <h2 className="text-2xl font-bold mb-6">Video Processing</h2>
+          
+          <div className="space-y-4">
+            <div className="flex items-center space-x-4">
+              <input
+                type="file"
+                accept="video/*"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="video-upload"
+              />
+              <label 
+                htmlFor="video-upload"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
+              >
+                Select Video
+              </label>
+              {selectedFile && (
+                <span className="text-gray-600">{selectedFile.name}</span>
+              )}
+            </div>
+
+            <Button
+              onClick={handleUpload}
+              disabled={!selectedFile || isProcessing}
+              className={`${isProcessing ? 'opacity-50 cursor-not-allowed' : ''} w-full sm:w-auto`}
+            >
+              {isProcessing ? 'Processing...' : 'Process Video'}
+            </Button>
+
+            {processedVideoUrl && (
+              <div className="mt-6">
+                <p className="mb-2 font-medium">Processed Video:</p>
+                <video
+                  controls
+                  className="w-full max-w-3xl rounded-lg shadow-lg"
+                  src={processedVideoUrl}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -1,78 +1,116 @@
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
+import gradio as gr
 import cv2
+import tempfile
 import numpy as np
-import torch
 from ultralytics import YOLO
-from utils.object_tracking import ObjectTracking
-import io
-import json
 
-app = FastAPI()
+def process_image(image, model_path, image_size, conf_threshold):
+    if model_path == "custom":
+        model = YOLO(r"C:\yolov12\runs\detect\train35\weights\best.pt")
+    else:
+        model = YOLO(model_path)
+    
+    results = model.predict(source=image, imgsz=image_size, conf=conf_threshold)
+    annotated_image = results[0].plot()
+    return annotated_image
 
-# Настройка CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # В продакшене замените на конкретные домены
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+def process_video(video_path, model_path, image_size, conf_threshold):
+    if model_path == "custom":
+        model = YOLO(r"C:\yolov12\runs\detect\train35\weights\best.pt")
+    else:
+        model = YOLO(model_path)
+    
+    cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
+    output_path = tempfile.mktemp(suffix=".mp4")
+    fourcc = cv2.VideoWriter_fourcc(*'avc1')
+    out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
+    
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+            
+        results = model.predict(source=frame, imgsz=image_size, conf=conf_threshold)
+        annotated_frame = results[0].plot()
+        out.write(annotated_frame)
+    
+    cap.release()
+    out.release()
+    return output_path
 
-# Инициализация модели и трекера
-model = YOLO("yolov12m.pt")
-objectTracking = ObjectTracking()
-deepsort = objectTracking.initialize_deepsort()
+def app():
+    with gr.Blocks() as demo:
+        with gr.Row():
+            with gr.Column():
+                image = gr.Image(type="numpy", label="Image", visible=True)
+                video = gr.Video(label="Video", visible=False)
+                input_type = gr.Radio(
+                    choices=["Image", "Video"],
+                    value="Image",
+                    label="Input Type",
+                )
+                model_id = gr.Dropdown(
+                    label="Model",
+                    choices=["custom"],
+                    value="custom",
+                )
+                image_size = gr.Slider(
+                    label="Image Size",
+                    minimum=320,
+                    maximum=1280,
+                    step=32,
+                    value=640,
+                )
+                conf_threshold = gr.Slider(
+                    label="Confidence Threshold",
+                    minimum=0.0,
+                    maximum=1.0,
+                    step=0.05,
+                    value=0.25,
+                )
+                detect_button = gr.Button(value="Detect Objects")
 
-@app.post("/detect")
-async def detect_animals(file: UploadFile = File(...)):
-    # Чтение изображения из запроса
-    contents = await file.read()
-    nparr = np.frombuffer(contents, np.uint8)
-    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    
-    # Обработка кадра
-    results = model.predict(frame, conf=0.25)
-    
-    # Подготовка данных для трекера
-    xywh_bboxs = []
-    confs = []
-    oids = []
-    
-    for result in results:
-        boxes = result.boxes
-        for box in boxes:
-            x1, y1, x2, y2 = box.xyxy[0]
-            x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-            cx, cy = int((x1 + x2)/2), int((y1 + y2)/2)
-            bbox_width = abs(x1 - x2)
-            bbox_height = abs(y1 - y2)
-            xcycwh = [cx, cy, bbox_width, bbox_height]
-            xywh_bboxs.append(xcycwh)
-            conf = float(box.conf[0])
-            confs.append(conf)
-            classNameInt = int(box.cls[0])
-            oids.append(classNameInt)
-    
-    # Трекинг объектов
-    detections = []
-    if xywh_bboxs:
-        xywhs = torch.tensor(xywh_bboxs)
-        confidence = torch.tensor(confs)
-        outputs = deepsort.update(xywhs, confidence, oids, frame)
+            with gr.Column():
+                output_image = gr.Image(type="numpy", label="Annotated Image", visible=True)
+                output_video = gr.Video(label="Annotated Video", visible=False)
+
+        def update_visibility(input_type):
+            return {
+                image: gr.update(visible=input_type == "Image"),
+                video: gr.update(visible=input_type == "Video"),
+                output_image: gr.update(visible=input_type == "Image"),
+                output_video: gr.update(visible=input_type == "Video")
+            }
+
+        input_type.change(
+            fn=update_visibility,
+            inputs=[input_type],
+            outputs=[image, video, output_image, output_video],
+        )
+
+        def run_inference(image, video, model_id, image_size, conf_threshold, input_type):
+            if input_type == "Image":
+                if image is None:
+                    return None, None
+                result = process_image(image, model_id, image_size, conf_threshold)
+                return result, None
+            else:
+                if video is None:
+                    return None, None
+                result = process_video(video, model_id, image_size, conf_threshold)
+                return None, result
+
+        detect_button.click(
+            fn=run_inference,
+            inputs=[image, video, model_id, image_size, conf_threshold, input_type],
+            outputs=[output_image, output_video],
+        )
         
-        if len(outputs) > 0:
-            for output in outputs:
-                x1, y1, x2, y2, track_id, class_id = output
-                detections.append({
-                    "bbox": [int(x1), int(y1), int(x2), int(y2)],
-                    "track_id": int(track_id),
-                    "class_id": int(class_id),
-                    "class_name": ['coyote', 'saiga-antilopa', 'pig', 'deer'][int(class_id)]
-                })
-    
-    return {"detections": detections}
+        return demo
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+if __name__ == '__main__':
+    app().launch()
